@@ -2,64 +2,61 @@ import java.util.ArrayList;
 import java.util.Random;
 
 public class Main {
-    private double [] W;
+    private double [] W; // массив весов W
     private double B;
-    private double l = 0.01;
-    private double n = 0.01;
+    private final double l = 0.01; // скорость регуляризации
+    private final double n = 0.01; // скорость обучения
     private ArrayList<Point> list = new ArrayList<>();
-    ArrayList<Point> d = new ArrayList<>();
+    private ArrayList<Point> testData;
+    private ArrayList<Point> controlData;
+    ArrayList<Point> d = new ArrayList<>(); // временный список данных
 
     public static void main(String[] args) {
         Main main = new Main();
     }
-    // сделаю так, что проверяет ошибку, если она довольно маленькая - остановить.
+    // Сделаю так, что проверяет ошибку, если она довольно маленькая - остановить.
+    // Ошибка - второй вес не меняется
     public Main(){
         for (int i = 0; i < 100; i++){
-            d.add(new Point(i, (double) i /2));
+            d.add(new Point(i, (double) Math.pow(i, 2))); // временное заполнение списка данных
         }
+        testData = getData(10, d);
+        controlData = getData(10, d);
 
-        Function ds = FRnd(1);
-        System.out.println(err(ds, d));
-        for (Double w : W){
-            System.out.println(w);
-        }
+        Function ds = FRnd(2);
+        double temp = err(ds, d);
         for (int i = 0; i < 1000; i++) {
-            ds = step(d, ds);
-            if (err(ds, d) > 0 && err(ds,d) < 0.35) {
-                System.out.println(err(ds, d));
-                System.out.println("W: " + W[0]);
+            ds = step(d, ds, Type.L2);
+            if (temp > err(ds, d)){
+                temp = err(ds, d);
+
+                for (Double dob: W) {
+                    System.out.println("W: " + dob);
+                }
+                System.out.println("B: " + B);
+                System.out.println("Error: " + err(ds, d));
             }
-        }
-        System.out.println("Итоговая ошибка: " + err(ds, d) + " Итоговый вес: " + W[0]);
+        } // реализовать запись конечной функции и возможность решать, опираясь на контрольный набор, на сколько ф-ця хороша
     }
 
-    public ArrayList<Point> randomList(ArrayList<Point> data){
-        Random random = new Random();
-        for (int i = data.size(); i > 0; i--) {
-            int j = random.nextInt(i + 1);
-            Point t = data.get(i);
-            data.set(i, data.get(j));
-            data.set(j, t);
-        }
-        return data;
-    }
-
-    private Function step(ArrayList<Point> data, Function function) {
-        int j = W.length; // количество w напрямую зависит от степени случайной ф-ции
+    private Function step(ArrayList<Point> data, Function function, Type L) { // шаг градиентного спуска
+        int power = W.length; // количество w напрямую зависит от степени power случайной ф-ции метод Frnd
         double sum = 0;
         double s = 0;
         for (Point p: data){
             sum += n * (sgn(p.y - function.f(p.x))) * p.x; // посмотреть что будет если выбирать случайный x
             s += n * (sgn(p.y - function.f(p.x)));
-           if (j > 0){
-               j--;
-           }
         }
-        W[j]+= (sum/ data.size()); // пока что перевожу в int
+        Random random = new Random();
+        int index = random.nextInt(power);
+        W[index]+= (sum/ data.size()); // пока что перевожу в int
         B+= s;
-
-       // W[j]-= (l * sgn(W[j]));
-        W[j] *= (1 - (2 * l));
+        if (L == Type.L1) {
+            W[index]-= (l * sgn(W[index]));
+        }
+        if (L == Type.L2){
+            W[index] *= (1 - (2 * l)); // норма регуляризации L2
+        }
         return (x -> {
             double y = 0;
             int pow = W.length;
@@ -71,18 +68,18 @@ public class Main {
         });
     }
 
-    private double sgn(double x){
+    private double sgn(double x){ // знаковая функция
         return Math.abs(x) / x;
     }
 
-    private Function FRnd(int power){
+    private Function FRnd(int power){ // создает многочлен со случайными весами степени power
         Random random = new Random();
         double[] w = new double[power];
         for (int i = 0; i < power; i++) {
-            w[i] = random.nextInt(1000);
+            w[i] = random.nextInt(100);
         }
         W = w.clone();
-        double b = random.nextDouble(1000);
+        double b = random.nextDouble(100);
         B = b;
         Function f = (x ->{
             double y = 0;
@@ -94,15 +91,7 @@ public class Main {
         return f;
     }
 
-    public void setN(int n) {
-        this.n = n;
-    }
-
-    public void setL(double l) {
-        this.l = l;
-    }
-
-    public double err(Function function, ArrayList<Point> data){
+    public double err(Function function, ArrayList<Point> data){ // функция ошибки
         double sum = 0;
         for (Point point : data) {
             sum += Math.abs(point.y - function.f(point.x));
@@ -110,22 +99,39 @@ public class Main {
         return (sum/ data.size());
     }
 
-    private double L1(){
-        double result = 0;
-        for (Double w : W){
-            result += Math.abs(w);
-        }
-        return result;
+    private Function createFunction(Double[] w, double b, int power){
+        return (x ->{
+            double y = 0;
+            for (int pow = power; pow >= 1; pow--) {
+                y += w[pow - 1] * Math.pow(x, pow);
+            }
+            return y + b;
+        });
     }
 
-    private double L2(){
-        double result = 0;
-        for (Double w : W){
-            result += Math.pow(w, 2);
+    private ArrayList<Point> getData(int percent, ArrayList<Point> data){ // Здесь будут формироваться тествые данные
+        int numberOfPoint = Math.round((float) (data.size() * percent) / 100);
+        int size = data.size();
+        boolean[] bol = new boolean[size];
+        ArrayList<Point> array = new ArrayList<>();
+        Random random = new Random();
+        for(int i = 0; i < numberOfPoint; i++) {
+            int rnd = random.nextInt(size);
+            while (bol[rnd]){
+                rnd = random.nextInt(size);
+            }
+
+            bol[rnd] = true;
+            array.add(data.get(rnd));
+            data.remove(rnd);
         }
-        return result;
+
+        return array; // возникает ошибка с длиной массива - разобраться
     }
 
-
+    /*
+    * Тестовые данные предназначены для определения, на сколько хороша наша модель.
+    * Именно по тестовым данным я принимаю решение(программа), создавать ли новую функцию более высокой степени.
+    * Контрольные данные нужны для, непосредственно, участии в обучении модели*/
 }
 

@@ -1,15 +1,20 @@
+import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Random;
 
 public class Main {
     private double [] W; // массив весов W
     private double B;
     private final double l = 0.01; // скорость регуляризации
-    private final double n = 0.01; // скорость обучения
+    private final double n = 0.001; // скорость обучения
     private ArrayList<Point> list = new ArrayList<>();
     private ArrayList<Point> testData;
     private ArrayList<Point> controlData;
     ArrayList<Point> d = new ArrayList<>(); // временный список данных
+    HashMap<Integer, Double> toChart = new HashMap<>();
+    HashMap<Integer, Double> toPointChart = new HashMap<>();
 
     public static void main(String[] args) {
         Main main = new Main();
@@ -18,25 +23,29 @@ public class Main {
     // Ошибка - второй вес не меняется
     public Main(){
         for (int i = 0; i < 100; i++){
-            d.add(new Point(i, (double) Math.pow(i, 2))); // временное заполнение списка данных
+            d.add(new Point(i, (double) Math.pow(i, 3))); // временное заполнение списка данных
+            //toPointChart.put(i, Math.pow(i, 3));
         }
         testData = getData(10, d);
         controlData = getData(10, d);
 
-        Function ds = FRnd(2);
+        Function ds = FRnd(3);
         double temp = err(ds, d);
-        for (int i = 0; i < 1000; i++) {
+        int index = 0;
+        for (int i = 0; i < 2000; i++) {
             ds = step(d, ds, Type.L2);
+            toChart.put(index, err(ds, d)); // записываю в коллекцию значения о данных
+            toPointChart.put(index, err(ds, testData));
             if (temp > err(ds, d)){
                 temp = err(ds, d);
-
-                for (Double dob: W) {
-                    System.out.println("W: " + dob);
-                }
-                System.out.println("B: " + B);
-                System.out.println("Error: " + err(ds, d));
+                System.out.println(err(ds, testData) + " ошибка на тестовых данных " + err(ds, d) + " не на тестовых");
             }
+                System.out.println(temp + " temp " + Arrays.toString(W) + " " + B);
+
+            index++;
         } // реализовать запись конечной функции и возможность решать, опираясь на контрольный набор, на сколько ф-ця хороша
+        PaintChart chart = new PaintChart(800,800,toPointChart,4, 4000);
+        PaintChart chart1 = new PaintChart(800,800,toPointChart,2, 10);
     }
 
     private Function step(ArrayList<Point> data, Function function, Type L) { // шаг градиентного спуска
@@ -45,7 +54,7 @@ public class Main {
         double s = 0;
         for (Point p: data){
             sum += n * (sgn(p.y - function.f(p.x))) * p.x; // посмотреть что будет если выбирать случайный x
-            s += n * (sgn(p.y - function.f(p.x)));
+            s += n * (sgn(p.y - function.f(p.x))); // возможно, ошибка в алгоритме, потому что самую низкую ошибку пропускает
         }
         Random random = new Random();
         int index = random.nextInt(power);
